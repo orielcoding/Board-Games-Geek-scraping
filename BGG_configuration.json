@@ -1,0 +1,8 @@
+{
+  "NUM_GAMES_TO_COLLECT": 10000,
+  "NUM_GAMES_PER_PAGE": 100,
+  "URL": "https://boardgamegeek.com/browse/boardgame/page/",
+  "DOMAIN": "https://boardgamegeek.com/",
+  "HEADERS": {"User-Agent": "Mozilla/5.0"},
+  "BATCH_NUM": 10
+}
