@@ -1,10 +1,12 @@
 import grequests
 import requests
-import re
-import time
+from selenium import webdriver
+from selenium.webdriver import Chrome
 from bs4 import BeautifulSoup
 import json
+import time
 import logging
+
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -23,12 +25,23 @@ def get_urls(page_num: int) -> list[str]:
 
     return [config["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags]
 
-
 def main():
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
+    options.add_argument(f'user-agent={config["HEADERS"]["User-Agent"]}')
+
+    driver = Chrome(options=options)
     games_pages_urls: list[str] = []
-    for index in range(config["NUM_GAMES_TO_COLLECT"] // config["NUM_GAMES_PER_PAGE"]):
-        print(len(games_pages_urls))
+
+    # for index in range(config["NUM_GAMES_TO_COLLECT"] // config["NUM_GAMES_PER_PAGE"]):
+    for index in range(2):
         games_pages_urls += get_urls(index)
+
+    for url in games_pages_urls[:1]:
+        driver.get(url)
+        # HTML from `<body>`
+        html = driver.execute_script("return document.body.outerHTML;")
+        print(html)
 
 
 if __name__ == "__main__":

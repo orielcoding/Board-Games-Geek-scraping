@@ -4,5 +4,6 @@
   "URL": "https://boardgamegeek.com/browse/boardgame/page/",
   "DOMAIN": "https://boardgamegeek.com/",
   "HEADERS": {"User-Agent": "Mozilla/5.0"},
-  "BATCH_NUM": 10
+  "BATCH_NUM": 10,
+  "PATH_TO_CHROME": "C:/Program Files/chromedriver.exe"
 }
