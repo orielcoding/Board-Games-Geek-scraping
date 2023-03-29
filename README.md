@@ -10,7 +10,7 @@ In this project we scraped data of _x(num)_ board games from BGG site. For the s
 
 
 **Created by:**
-**Oriel Singer** - [title](linkedin.com/in/oriel-singer-67a4a7162)
-**Maria Blinchevskaya** - [title](linkedin.com/in/maria-blinchevskaya)
+**Oriel Singer** - [LinkedIn](linkedin.com/in/oriel-singer-67a4a7162)
+**Maria Blinchevskaya** - [LinkedIn](linkedin.com/in/maria-blinchevskaya)
 
 
