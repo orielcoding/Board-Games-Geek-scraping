@@ -126,10 +126,10 @@ class Game:
         types_rank: list = []
         for index in range(num_types):
             types_rank.append(int(re.match('[0-9]+', html[8 + index].text.strip()).group()))
-        all_time_plays = int(html[9 + num_types - 1].text.strip())
-        this_month_plays = int(html[10 + num_types - 1].text.strip())
-        num_own = int(html[11 + num_types - 1].text.strip())
-        num_wishlist = int(html[15 + num_types - 1].text.strip())
+        all_time_plays = int((html[9 + num_types - 1].text.strip().replace(',', '')))
+        this_month_plays = int(html[10 + num_types - 1].text.strip().replace(',', ''))
+        num_own = int(html[11 + num_types - 1].text.strip().replace(',', ''))
+        num_wishlist = int(html[15 + num_types - 1].text.strip().replace(',', ''))
 
         return {"aggregate_rating": aggregate_rating, "review_count": review_count, "num_comments": num_comments,
                 "page_views": page_views, "overall_rank": overall_rank, "all_time_plays": all_time_plays,
