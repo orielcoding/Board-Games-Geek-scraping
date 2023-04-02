@@ -14,7 +14,7 @@ with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
 
 
-def get_urls(page_num: int, quantity: int = 100) -> list[str]:
+def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> list[str]:
     """
     This func sends a request to a html page that contain multiple desired urls and returns a list of them
     """
@@ -169,6 +169,7 @@ def main():
     parser.add_argument('-c', '--creators', action='store_true', help='limits data collection to info on creators')
     parser.add_argument('-g', '--gameplay', action='store_true', help='limits data collection to info on gameplay')
     parser.add_argument('-f', '--features', action='store_true', help='limits data collection to info about features')
+    parser.add_argument('-d', '--database', action='store_true', help='to save the info into sql database')
 
     args = parser.parse_args()
 
@@ -203,7 +204,12 @@ def main():
     for list_index, lst in enumerate(games_pages_urls):
         for index, url in enumerate(lst):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, cli_options)
-            print(games[f"game_{index}"].get_info())
+            # print(games[f"game_{index}"].get_info())
+            if args.database:
+                """
+                writes the scraped data to database
+                """
+                pass
 
 
 if __name__ == "__main__":
