@@ -1,15 +1,20 @@
+# import grequests
 import requests
 from selenium import webdriver
 from selenium.webdriver import Chrome
 from bs4 import BeautifulSoup
 import json
+import argparse
+# from pathlib import Path
+# import time
+# import logging
 import re
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
 
 
-def get_urls(page_num: int) -> list[str]:
+def get_urls(page_num: int, quantity: int = 100) -> list[str]:
     """
     This func sends a request to a html page that contain multiple desired urls and returns a list of them
     """
@@ -20,7 +25,7 @@ def get_urls(page_num: int) -> list[str]:
     # class is identifier to find where the links to games pages are located inside the text
     tags = doc.find_all(class_="collection_objectname browse")
 
-    return [config["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags]
+    return [config["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags[0:quantity]]
 
 
 def get_html(url: str, driver):
@@ -29,14 +34,26 @@ def get_html(url: str, driver):
 
 
 class Game:
-    def __init__(self, url: str, driver):
-        self.html: BeautifulSoup = get_html(url, driver)
-        self.html_stats: BeautifulSoup = get_html(f"{url}/stats", driver)
+    def __init__(self, url: str, driver, options):
+        self.options = options
+        self.html: BeautifulSoup = self.get_html(url, driver)
+        self.html_stats: BeautifulSoup = self.get_html(f"{url}/stats", driver)
         self.gameplay_panel = self.html.find(class_="panel panel-bottom ng-scope")
         self.credits_panel = self.html.find(class_="credits ng-scope")
         self.features_panel = self.html.find(class_="panel panel-bottom game-classification ng-scope")
         self.features = self.get_features()
-        self.info: dict = self.get_title() | self.get_gameplay() | self.features | self.get_creators() | self.get_stats()
+        if len(self.options) == 0:
+            self.info: dict = self.get_title() | self.get_gameplay() | self.get_features() | self.get_creators() | self.get_stats()
+        else:
+            self.info: dict = self.get_title()
+            if 'g' in self.options: self.info = self.info | self.get_gameplay()
+            if 'f' in self.options: self.info = self.info | self.get_features()
+            if 'c' in self.options: self.info = self.info | self.get_creators()
+            if 's' in self.options: self.info = self.info | self.get_stats()
+
+    def get_html(self, url: str, driver):
+        driver.get(url)
+        return BeautifulSoup(driver.execute_script("return document.body.outerHTML;"), "lxml")
 
     def get_title(self) -> dict:
         """
@@ -45,7 +62,7 @@ class Game:
         html = self.html.find_all(class_="game-header-title-info")
         text_list = html[1].text.strip().split()
         game_title: str = ""
-        game_year: int = None
+        game_year: int = 0
         for item in text_list:
             if item[0] == '(' and item[5] == ')':
                 game_year = int(item[1:-1])
@@ -131,6 +148,8 @@ class Game:
         num_own = int(html[11 + num_types - 1].text.strip().replace(',', ''))
         num_wishlist = int(html[15 + num_types - 1].text.strip().replace(',', ''))
 
+        print(aggregate_rating, review_count)
+
         return {"aggregate_rating": aggregate_rating, "review_count": review_count, "num_comments": num_comments,
                 "page_views": page_views, "overall_rank": overall_rank, "all_time_plays": all_time_plays,
                 "this_month_plays": this_month_plays,
@@ -144,20 +163,47 @@ class Game:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--num_games', type=int, help='specifies number of pages to scrap')
+    parser.add_argument('-s', '--stats', action='store_true', help='limits data collection to stats')
+    parser.add_argument('-c', '--creators', action='store_true', help='limits data collection to info on creators')
+    parser.add_argument('-g', '--gameplay', action='store_true', help='limits data collection to info on gameplay')
+    parser.add_argument('-f', '--features', action='store_true', help='limits data collection to info about features')
+
+    args = parser.parse_args()
+
+    """
+    building list of options to be used as one more parameter for Game class, 
+    the content of self.info will depend on it:
+    """
+    cli_options = []
+    if args.stats: cli_options.append('s')
+    if args.creators: cli_options.append('c')
+    if args.gameplay: cli_options.append('g')
+    if args.features: cli_options.append('f')
+
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument(f'user-agent={config["HEADERS"]["User-Agent"]}')
     driver = Chrome(options=options)
     driver.implicitly_wait(5)
 
+    if args.num_games:
+        count = args.num_games
+    else:
+        count = config["NUM_GAMES_TO_COLLECT"]
+
     games_pages_urls: list = []
-    for index in range(config["NUM_GAMES_TO_COLLECT"] // config["NUM_GAMES_PER_PAGE"]):
+    for index in range(count // config["NUM_GAMES_PER_PAGE"]):
         games_pages_urls.append(get_urls(index))
+
+    games_pages_urls.append(get_urls(count // config["NUM_GAMES_PER_PAGE"], count % config["NUM_GAMES_PER_PAGE"]))
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
         for index, url in enumerate(lst):
-            games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver)
+            games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, cli_options)
+            print(games[f"game_{index}"].get_info())
 
 
 if __name__ == "__main__":
