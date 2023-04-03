@@ -7,13 +7,51 @@ import json
 import argparse
 # from pathlib import Path
 # import time
-# import logging
+import logging
+from functools import wraps
 import re
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
 
 
+def create_logger():
+    # creates a logger object
+    logger = logging.getLogger('exc_logger')
+    logger.setLevel(logging.INFO)
+
+    # creates a file to store all the logged exceptions
+    # ? need to put the file name to json ??
+    logfile = logging.FileHandler('bgg_exception.log')
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    formatter = logging.Formatter(fmt)
+    logfile.setFormatter(formatter)
+    logger.addHandler(logfile)
+    return logger
+
+
+logger = create_logger()
+
+
+def exception(logger):
+    # logger is the logging object
+    # exception is the decorator objects that logs every exception into log file
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except:
+                issue = "exception in " + func.__name__ + "\n"
+                issue = issue + "-------------------------\
+                ----------------------------------------------\n"
+                logger.exception(issue)
+            raise
+        return wrapper
+    return decorator
+
+
+@exception(logger)
 def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> list[str]:
     """
     This func sends a request to a html page that contain multiple desired urls and returns a list of them
@@ -28,6 +66,7 @@ def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> lis
     return [config["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags[0:quantity]]
 
 
+@exception(logger)
 def get_html(url: str, driver):
     driver.get(url)
     return BeautifulSoup(driver.execute_script("return document.body.outerHTML;"), "lxml")
@@ -43,7 +82,8 @@ class Game:
         self.features_panel = self.html.find(class_="panel panel-bottom game-classification ng-scope")
         self.features = self.get_features()
         if len(self.options) == 0:
-            self.info: dict = self.get_title() | self.get_gameplay() | self.get_features() | self.get_creators() | self.get_stats()
+            self.info: dict = self.get_title() | self.get_gameplay() | self.get_features() \
+                              | self.get_creators() | self.get_stats()
         else:
             self.info: dict = self.get_title()
             if 'g' in self.options: self.info = self.info | self.get_gameplay()
@@ -51,10 +91,12 @@ class Game:
             if 'c' in self.options: self.info = self.info | self.get_creators()
             if 's' in self.options: self.info = self.info | self.get_stats()
 
+    @exception(logger)
     def get_html(self, url: str, driver):
         driver.get(url)
         return BeautifulSoup(driver.execute_script("return document.body.outerHTML;"), "lxml")
 
+    @exception(logger)
     def get_title(self) -> dict:
         """
         Returns dictionary containing game title and release year
@@ -72,6 +114,7 @@ class Game:
 
         return {"game_title": game_title, "game_year": game_year}
 
+    @exception(logger)
     def get_gameplay(self) -> dict:
         """
         Returns dictionary containing: num players, time duration, age limit, weight (complexity of the game)
@@ -97,6 +140,7 @@ class Game:
         # weight = 0
         return {"num_players": num_players, "time_duration": time_duration, "age_limit": age_limit, "weight": weight}
 
+    @exception(logger)
     def get_features(self) -> dict:
         """
         Returns dictionary containing: type, category, mechanism
@@ -114,6 +158,7 @@ class Game:
 
         return {"game_type": game_type, "category": category, "mechanism": mechanism, "reimplements": reimplements}
 
+    @exception(logger)
     def get_creators(self) -> dict:
         """
         Returns dictionary containing: designers and artists
@@ -128,6 +173,7 @@ class Game:
 
         return {"designers": designers, "artists": artists}
 
+    @exception(logger)
     def get_stats(self) -> dict:
         """
         Returns dictionary containing statistical info about the games.
@@ -148,13 +194,12 @@ class Game:
         num_own = int(html[11 + num_types - 1].text.strip().replace(',', ''))
         num_wishlist = int(html[15 + num_types - 1].text.strip().replace(',', ''))
 
-        print(aggregate_rating, review_count)
-
         return {"aggregate_rating": aggregate_rating, "review_count": review_count, "num_comments": num_comments,
                 "page_views": page_views, "overall_rank": overall_rank, "all_time_plays": all_time_plays,
                 "this_month_plays": this_month_plays,
                 "num_own": num_own, "num_wishlist": num_wishlist}
 
+    @exception(logger)
     def get_info(self) -> dict:
         """
         Returns all the info of a game
@@ -162,6 +207,7 @@ class Game:
         return self.info
 
 
+@exception(logger)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_games', type=int, help='specifies number of pages to scrap')
@@ -204,7 +250,7 @@ def main():
     for list_index, lst in enumerate(games_pages_urls):
         for index, url in enumerate(lst):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, cli_options)
-            # print(games[f"game_{index}"].get_info())
+            print(games[f"game_{index}"].get_info())
             if args.database:
                 """
                 writes the scraped data to database
