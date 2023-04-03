@@ -4,6 +4,7 @@ from selenium.webdriver import Chrome
 from bs4 import BeautifulSoup
 import json
 import re
+import saving_to_db
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -126,15 +127,15 @@ class Game:
         types_rank: list = []
         for index in range(num_types):
             types_rank.append(int(re.match('[0-9]+', html[8 + index].text.strip()).group()))
-        all_time_plays = int(html[9 + num_types - 1].text.strip())
-        this_month_plays = int(html[10 + num_types - 1].text.strip())
-        num_own = int(html[11 + num_types - 1].text.strip())
-        num_wishlist = int(html[15 + num_types - 1].text.strip())
+        all_time_plays = html[9 + num_types - 1].text.strip()
+        this_month_plays = html[10 + num_types - 1].text.strip()
+        num_own = html[11 + num_types - 1].text.strip()
+        num_wishlist = html[15 + num_types - 1].text.strip()
 
-        return {"aggregate_rating": aggregate_rating, "review_count": review_count, "num_comments": num_comments,
-                "page_views": page_views, "overall_rank": overall_rank, "all_time_plays": all_time_plays,
-                "this_month_plays": this_month_plays,
-                "num_own": num_own, "num_wishlist": num_wishlist}
+        return {"aggregate_rating": aggregate_rating, "overall_rank": overall_rank, "types_rank": types_rank,
+                "num_comments": num_comments, "page_views": page_views, "all_time_plays": all_time_plays,
+                "this_month_plays": this_month_plays, "num_own": num_own,
+                "num_wishlist": num_wishlist, "review_count": review_count}
 
     def get_info(self) -> dict:
         """
@@ -151,13 +152,23 @@ def main():
     driver.implicitly_wait(5)
 
     games_pages_urls: list = []
-    for index in range(config["NUM_GAMES_TO_COLLECT"] // config["NUM_GAMES_PER_PAGE"]):
+    # for index in range(config["NUM_GAMES_TO_COLLECT"] // config["NUM_GAMES_PER_PAGE"]):
+    for index in range(1):
         games_pages_urls.append(get_urls(index))
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst):
+        for index, url in enumerate(lst[:2]):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver)
+
+    db_tables = saving_to_db.connect_to_db_tables()
+
+    obj_list_values = [v.get_info()['game_title'] for v in games.values()]
+    saving_to_db.saving_independent_tables_info(db_tables['game'], obj_list_values, 'name')
+
+    obj_list_values = [[v.get_info()['game_title']] + list(v.get_stats().values()) for v in games.values()]
+    saving_to_db.saving_to_first_level_relational_tables(db_tables['game_stats'], obj_list_values, db_tables['game'])
+    saving_to_db.describe_table(db_tables['game_stats'])
 
 
 if __name__ == "__main__":
