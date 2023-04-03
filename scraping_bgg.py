@@ -41,13 +41,15 @@ def exception(logger):
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except:
+            except Exception:
                 issue = "exception in " + func.__name__ + "\n"
                 issue = issue + "-------------------------\
                 ----------------------------------------------\n"
                 logger.exception(issue)
             raise
+
         return wrapper
+
     return decorator
 
 
@@ -75,8 +77,8 @@ def get_html(url: str, driver):
 class Game:
     def __init__(self, url: str, driver, options):
         self.options = options
-        self.html: BeautifulSoup = self.get_html(url, driver)
-        self.html_stats: BeautifulSoup = self.get_html(f"{url}/stats", driver)
+        self.html: BeautifulSoup = get_html(url, driver)
+        self.html_stats: BeautifulSoup = get_html(f"{url}/stats", driver)
         self.gameplay_panel = self.html.find(class_="panel panel-bottom ng-scope")
         self.credits_panel = self.html.find(class_="credits ng-scope")
         self.features_panel = self.html.find(class_="panel panel-bottom game-classification ng-scope")
@@ -252,14 +254,15 @@ def main():
                 """
                 pass
 
-    db_tables = saving_to_db.connect_to_db_tables()
-
-    obj_list_values = [v.get_info()['game_title'] for v in games.values()]
-    saving_to_db.saving_independent_tables_info(db_tables['game'], obj_list_values, 'name')
-
-    obj_list_values = [[v.get_info()['game_title']] + list(v.get_stats().values()) for v in games.values()]
-    saving_to_db.saving_to_first_level_relational_tables(db_tables['game_stats'], obj_list_values, db_tables['game'])
-    saving_to_db.describe_table(db_tables['game_stats'])
+    # TODO: save all scraped data into db
+    # db_tables = saving_to_db.connect_to_db_tables()
+    #
+    # obj_list_values = [v.get_info()['game_title'] for v in games.values()]
+    # saving_to_db.saving_independent_tables_info(db_tables['game'], obj_list_values, 'name')
+    #
+    # obj_list_values = [[v.get_info()['game_title']] + list(v.get_stats().values()) for v in games.values()]
+    # saving_to_db.saving_to_first_level_relational_tables(db_tables['game_stats'], obj_list_values, db_tables['game'])
+    # saving_to_db.describe_table(db_tables['game_stats'])
 
 
 if __name__ == "__main__":
