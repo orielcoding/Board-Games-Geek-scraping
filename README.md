@@ -8,6 +8,16 @@ BoardGameGeek (BGG) is a board game database - a collection or catalog of data a
 By scraping the data and analysing it we hope to get valuable insights into board game industry and players preferencies, and may be select a few new games for ourselves. 
 
 
+Usage:
+- download the bgg.sql file
+- login to your mysql user, and type in mysql the following query (choose name for the database): "CREATE DATABASE databasename;"
+- from the cmd run the following line (your username and the databasename you chose): "mysql -u username -p databasename < bgg.sql" 
+- change the following value of "SQLAlchemy_db_connection" key in configuration.json file to your username, password, localhost and database name
+where the sql database is located. example: "mysql+pymysql://username:password@host/database"
+- install all the packages in the requirements file. 
+- Thats it! go ahead and start scraping bgg
+
+
 At the current stage the code:
 * collects individual game's ULS
 * goes to each URL and scraps the information on:
@@ -26,7 +36,7 @@ see requirements.txt
 
 
 # Authors
-Oriel Singer ()
+Oriel Singer (https://www.linkedin.com/in/oriel-singer/)
 
 Maria Blinchevskaya (https://www.linkedin.com/in/maria-blinchevskaya/)
 
