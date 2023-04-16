@@ -4,8 +4,6 @@ from selenium.webdriver import Chrome
 from bs4 import BeautifulSoup
 import json
 import argparse
-# from pathlib import Path
-# import time
 import logging
 from functools import wraps
 import re
@@ -46,7 +44,7 @@ def exception(logger):
                 issue = issue + "-------------------------\
                 ----------------------------------------------\n"
                 logger.exception(issue)
-            raise
+            raise BaseException
 
         return wrapper
 
@@ -69,29 +67,42 @@ def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> lis
 
 
 @exception(logger)
-def get_html(url: str, driver):
+def get_html_body(url: str, driver):
     driver.get(url)
     return BeautifulSoup(driver.execute_script("return document.body.outerHTML;"), "lxml")
+
+
+def get_html_head(url: str, driver):
+    driver.get(url)
+    return BeautifulSoup(driver.execute_script("return document.head.outerHTML;"), "lxml")
 
 
 class Game:
     def __init__(self, url: str, driver, options):
         self.options = options
-        self.html: BeautifulSoup = get_html(url, driver)
-        self.html_stats: BeautifulSoup = get_html(f"{url}/stats", driver)
+        self.html: BeautifulSoup = get_html_body(url, driver)
+        self.html_head: BeautifulSoup = get_html_head(url, driver)
+        self.html_stats: BeautifulSoup = get_html_body(f"{url}/stats", driver)
         self.gameplay_panel = self.html.find(class_="panel panel-bottom ng-scope")
         self.credits_panel = self.html.find(class_="credits ng-scope")
         self.features_panel = self.html.find(class_="panel panel-bottom game-classification ng-scope")
         self.features = self.get_features()
         if len(self.options) == 0:
             self.info: dict = self.get_title() | self.get_gameplay() | self.get_features() \
-                              | self.get_creators() | self.get_stats()
+                              | self.get_creators() | self.get_stats() | self.get_site_id()
         else:
             self.info: dict = self.get_title()
             if 'g' in self.options: self.info = self.info | self.get_gameplay()
             if 'f' in self.options: self.info = self.info | self.get_features()
             if 'c' in self.options: self.info = self.info | self.get_creators()
             if 's' in self.options: self.info = self.info | self.get_stats()
+            # TODO add option the extract site id? or maybe not...
+
+    @exception(logger)
+    def get_site_id(self):
+        html = self.html_head.find("link")
+        game_site_id: int = int(re.search(r'\d+', str(html)).group())
+        return {"game_site_id": game_site_id}
 
     @exception(logger)
     def get_title(self) -> dict:
@@ -120,22 +131,29 @@ class Game:
 
         num_pattern = gameplay_items[0].find_all('span', class_='ng-binding ng-scope')
         if len(num_pattern) > 1:
-            num_players = tuple([int(num_pattern[0].text.strip()), int(num_pattern[1].text.strip()[1:])])
+            # num_players = tuple([int(num_pattern[0].text.strip()), int(num_pattern[1].text.strip()[1:])])
+            min_n_players = int(num_pattern[0].text.strip())
+            max_n_players = int(num_pattern[1].text.strip()[1:])
         else:
-            num_players = tuple([int(num_pattern[0].text.strip())])
+            min_n_players = int(num_pattern[0].text.strip())
+            max_n_players = None
 
         time_pattern = gameplay_items[1].find_all('span', class_='ng-binding ng-scope')
 
         if len(time_pattern) > 1:
-            time_duration = tuple([int(time_pattern[0].text.strip()), int(time_pattern[1].text.strip()[1:])])
+            # time_duration = tuple([int(time_pattern[0].text.strip()), int(time_pattern[1].text.strip()[1:])])
+            min_time = int(time_pattern[0].text.strip())
+            max_time = int(time_pattern[1].text.strip()[1:])
         else:
-            time_duration = tuple([int(time_pattern[0].text.strip())])
+            min_time = int(time_pattern[0].text.strip())
+            max_time = None
 
         age_limit: int = int(re.search(r"[0-9]*(?=\+)", str(gameplay_items[2])).group())
-        # age_limit = 0
+
         weight: float = float(re.search(r"[0-5]\.[0-9]{2}", str(gameplay_items[3])).group())
-        # weight = 0
-        return {"num_players": num_players, "time_duration": time_duration, "age_limit": age_limit, "weight": weight}
+
+        return {"min_n_players": min_n_players, "max_n_players": max_n_players, "min_time": min_time,
+                "max_time": max_time, "age_limit": age_limit, "weight": weight}
 
     @exception(logger)
     def get_features(self) -> dict:
@@ -204,7 +222,7 @@ class Game:
         return self.info
 
 
-@exception(logger)
+# @exception(logger)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_games', type=int, help='specifies number of pages to scrap')
@@ -230,7 +248,7 @@ def main():
     options.add_argument("--headless=new")
     options.add_argument(f'user-agent={config["HEADERS"]["User-Agent"]}')
     driver = Chrome(options=options)
-    driver.implicitly_wait(5)
+    driver.implicitly_wait(2)
 
     if args.num_games:
         count = args.num_games
@@ -238,31 +256,73 @@ def main():
         count = config["NUM_GAMES_TO_COLLECT"]
 
     games_pages_urls: list = []
-    for index in range(count // config["NUM_GAMES_PER_PAGE"]):
+    # for index in range(count // config["NUM_GAMES_PER_PAGE"]):
+    for index in range(1):
         games_pages_urls.append(get_urls(index))
 
-    games_pages_urls.append(get_urls(count // config["NUM_GAMES_PER_PAGE"], count % config["NUM_GAMES_PER_PAGE"]))
+    # games_pages_urls.append(get_urls(count // config["NUM_GAMES_PER_PAGE"], count % config["NUM_GAMES_PER_PAGE"]))
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst):
+        for index, url in enumerate(lst[:2]):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, cli_options)
-            print(games[f"game_{index}"].get_info())
+            print(games[f"game_{list_index * 100 + index}"].get_site_id())
             if args.database:
                 """
                 writes the scraped data to database
                 """
                 pass
 
-    # TODO: save all scraped data into db
-    # db_tables = saving_to_db.connect_to_db_tables()
-    #
-    # obj_list_values = [v.get_info()['game_title'] for v in games.values()]
-    # saving_to_db.saving_independent_tables_info(db_tables['game'], obj_list_values, 'name')
-    #
-    # obj_list_values = [[v.get_info()['game_title']] + list(v.get_stats().values()) for v in games.values()]
-    # saving_to_db.saving_to_first_level_relational_tables(db_tables['game_stats'], obj_list_values, db_tables['game'])
-    # saving_to_db.describe_table(db_tables['game_stats'])
+    db_tables = saving_to_db.connect_to_db_tables()
+
+    # independent tables:
+
+    game = [[v.get_info()[key] for key in ['game_site_id', 'game_title']] for v in
+            games.values()]
+    saving_to_db.data_to_db(db_tables['game'], game, unique_column='site_id')
+
+    artists = [v.get_info()['artists'] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['artists'], artists, unique_column='artist_name')
+
+    categories = [v.get_info()['category'] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['categories'], categories, unique_column='category')
+
+    designers = [v.get_info()['designers'] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['designers'], designers, unique_column='designer_name')
+
+    mechanics = [v.get_info()['mechanism'] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['mechanics'], mechanics, unique_column='mechanic')
+
+    types = [v.get_info()['game_type'] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['types'], types, unique_column='type')
+
+    # related tables by 1 foreign key:
+
+    general_info = [[v.get_info()[key] for key in ['game_site_id', 'game_type', 'min_n_players', 'max_n_players',
+                            'weight', 'game_year', 'min_time', 'max_time', 'age_limit']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['general_info'], general_info, inherit_from=['game', 'types'], match_col=['id', 'type_id'])
+
+    game_stats = [[v.get_info()[key] for key in ['game_site_id']+list(v.get_stats().keys())] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_stats'], game_stats, inherit_from=['game'], match_col=['id'])
+
+    # related tables by 2 foreign keys:
+
+    game_artists = [[v.get_info()[key] for key in ['game_site_id', 'artists', ]] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_artists'], game_artists, inherit_from=['game', 'artists'], match_col=['id', 'artist_id'], fk_col=[])
+
+    game_categories = [[v.get_info()[key] for key in ['game_site_id', 'category']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_categories'], game_categories, inherit_from=['game', 'categories'], match_col=['id', 'category_id'])
+
+    game_designers = [[v.get_info()[key] for key in ['game_site_id', 'designers']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_designers'], game_designers, inherit_from=['game', 'designers'], match_col=['id', 'designer_id'])
+
+    game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=['game', 'mechanics'], match_col=['id', 'mechanics_id'])
+
+    game_reimplements = [[v.get_info()[key] for key in ['game_site_id', 'game_site_id']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_reimplements'], game_reimplements, inherit_from=['game', 'game'], match_col=['id', 'id'])
+
+    # saving_to_db.describe_table(db_tables['artists'])
 
 
 if __name__ == "__main__":
