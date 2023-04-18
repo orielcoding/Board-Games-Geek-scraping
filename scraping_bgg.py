@@ -222,7 +222,90 @@ class Game:
         return self.info
 
 
-# @exception(logger)
+@exception(logger)
+def save_to_database(games: dict) -> None:
+    """
+    This function is called to save games into databses. This function use the saving_to_db class.
+    """
+
+    db_tables = saving_to_db.connect_to_db_tables()
+
+    # independent tables:
+
+    game = [[v.get_info()[key] for key in ['game_site_id', 'game_title']] for v in
+            games.values()]
+    saving_to_db.data_to_db(db_tables['game'], game, unique_column='site_id')
+
+    artists = [[v.get_info()[key] for key in ['artists']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['artists'], artists, unique_column='artist_name')
+
+    categories = [[v.get_info()[key] for key in ['category']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['categories'], categories, unique_column='category')
+
+    designers = [[v.get_info()[key] for key in ['designers']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['designers'], designers, unique_column='designer_name')
+
+    mechanics = [[v.get_info()[key] for key in ['mechanism']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['mechanics'], mechanics, unique_column='machanic')
+
+    types = [[v.get_info()[key] for key in ['game_type']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['types'], types, unique_column='type')
+    #
+    # # related tables by 1 foreign key:
+
+    general_info = [[v.get_info()[key] for key in ['game_site_id', 'game_type', 'min_n_players', 'max_n_players',
+                            'weight', 'game_year', 'min_time', 'max_time', 'age_limit']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['general_info'], general_info, inherit_from=[db_tables['types']], match_col=['type_id'], fk_col=[0])
+
+    game_stats = [[v.get_info()[key] for key in ['game_site_id']+list(v.get_stats().keys())] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_stats'], game_stats)
+
+    # related tables by 2 foreign keys:
+
+    game_artists = [[v.get_info()[key] for key in ['game_site_id', 'artists', ]] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_artists'], game_artists, inherit_from=[db_tables['artists']], match_col=['artist_id'], fk_col=[1])
+
+    game_categories = [[v.get_info()[key] for key in ['game_site_id', 'category']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_categories'], game_categories, inherit_from=[db_tables['categories']], match_col=['category_id'])
+
+    game_designers = [[v.get_info()[key] for key in ['game_site_id', 'designers']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_designers'], game_designers, inherit_from=[db_tables['designers']], match_col=['designer_id'])
+
+    game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']], match_col=['mechanics_id'])
+
+    game_reimplements = [[v.get_info()[key] for key in ['game_site_id', 'game_site_id']] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_reimplements'], game_reimplements, inherit_from=[db_tables['game']], match_col=['id'])
+
+
+@exception(logger)
+def bgg_scrape_games(scraping_options: list, count: int) -> dict:
+    """
+    This function scrape data. specifically, it scrapes data from bgg site.
+    The argument controls the scraping options from bgg.
+    """
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
+    options.add_argument(f'user-agent={config["HEADERS"]["User-Agent"]}')
+    driver = Chrome(options=options)
+    driver.implicitly_wait(2)
+
+    games_pages_urls: list = []
+    for index in range(count // config["NUM_GAMES_PER_PAGE"]):
+        games_pages_urls.append(get_urls(index))
+
+    games_pages_urls.append(get_urls(count // config["NUM_GAMES_PER_PAGE"], count % config["NUM_GAMES_PER_PAGE"]))
+
+    games: dict = {}
+    for list_index, lst in enumerate(games_pages_urls):
+        for index, url in enumerate(lst[:20]):  # TODO: change eventually to full number
+            games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, scraping_options)
+            print(games[f"game_{list_index * 100 + index}"].get_site_id())
+
+    return games
+
+
+@exception(logger)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_games', type=int, help='specifies number of pages to scrap')
@@ -244,85 +327,19 @@ def main():
     if args.gameplay: cli_options.append('g')
     if args.features: cli_options.append('f')
 
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless=new")
-    options.add_argument(f'user-agent={config["HEADERS"]["User-Agent"]}')
-    driver = Chrome(options=options)
-    driver.implicitly_wait(2)
-
     if args.num_games:
         count = args.num_games
     else:
         count = config["NUM_GAMES_TO_COLLECT"]
 
-    games_pages_urls: list = []
-    # for index in range(count // config["NUM_GAMES_PER_PAGE"]):
-    for index in range(1):
-        games_pages_urls.append(get_urls(index))
+    bgg_scrape_games(cli_options, count)
 
-    # games_pages_urls.append(get_urls(count // config["NUM_GAMES_PER_PAGE"], count % config["NUM_GAMES_PER_PAGE"]))
 
-    games: dict = {}
-    for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst[:2]):
-            games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, cli_options)
-            print(games[f"game_{list_index * 100 + index}"].get_site_id())
-            if args.database:
-                """
-                writes the scraped data to database
-                """
-                pass
-
-    db_tables = saving_to_db.connect_to_db_tables()
-
-    # independent tables:
-
-    game = [[v.get_info()[key] for key in ['game_site_id', 'game_title']] for v in
-            games.values()]
-    saving_to_db.data_to_db(db_tables['game'], game, unique_column='site_id')
-
-    artists = [v.get_info()['artists'] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['artists'], artists, unique_column='artist_name')
-
-    categories = [v.get_info()['category'] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['categories'], categories, unique_column='category')
-
-    designers = [v.get_info()['designers'] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['designers'], designers, unique_column='designer_name')
-
-    mechanics = [v.get_info()['mechanism'] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['mechanics'], mechanics, unique_column='mechanic')
-
-    types = [v.get_info()['game_type'] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['types'], types, unique_column='type')
-
-    # related tables by 1 foreign key:
-
-    general_info = [[v.get_info()[key] for key in ['game_site_id', 'game_type', 'min_n_players', 'max_n_players',
-                            'weight', 'game_year', 'min_time', 'max_time', 'age_limit']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['general_info'], general_info, inherit_from=['game', 'types'], match_col=['id', 'type_id'])
-
-    game_stats = [[v.get_info()[key] for key in ['game_site_id']+list(v.get_stats().keys())] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_stats'], game_stats, inherit_from=['game'], match_col=['id'])
-
-    # related tables by 2 foreign keys:
-
-    game_artists = [[v.get_info()[key] for key in ['game_site_id', 'artists', ]] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_artists'], game_artists, inherit_from=['game', 'artists'], match_col=['id', 'artist_id'], fk_col=[])
-
-    game_categories = [[v.get_info()[key] for key in ['game_site_id', 'category']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_categories'], game_categories, inherit_from=['game', 'categories'], match_col=['id', 'category_id'])
-
-    game_designers = [[v.get_info()[key] for key in ['game_site_id', 'designers']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_designers'], game_designers, inherit_from=['game', 'designers'], match_col=['id', 'designer_id'])
-
-    game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=['game', 'mechanics'], match_col=['id', 'mechanics_id'])
-
-    game_reimplements = [[v.get_info()[key] for key in ['game_site_id', 'game_site_id']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_reimplements'], game_reimplements, inherit_from=['game', 'game'], match_col=['id', 'id'])
-
-    # saving_to_db.describe_table(db_tables['artists'])
+    if args.database:
+        """
+        writes the scraped data to database
+        """
+        pass
 
 
 if __name__ == "__main__":
