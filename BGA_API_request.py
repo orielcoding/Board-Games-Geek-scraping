@@ -1,4 +1,5 @@
 from urllib.request import urlopen
+import urllib.parse
 import json
 import re
 
@@ -33,6 +34,7 @@ def get_prices_api(game_name):
     """
     game_id = get_game_bga_id(game_name)
     url = f'{url_base_api}game/prices?game_id={game_id}&client_id={api_client_id}'
+    print(url)
     with urlopen(url) as url:
         data = json.load(url)
 
@@ -51,14 +53,6 @@ def get_prices_api(game_name):
 
 
 for game in game_name_list:
-    space = ' '
-    if space in game:
-        game_split = re.split(r' |:', game)
-        game_no_space = ''
-        for word in game_split:
-            if len(word)>0: game_no_space += f'{word}-'
-    else:
-        game_no_space = game
-
-    print(get_prices_api(game_no_space))
+    game_encode = urllib.parse.quote_plus(game)
+    print(game, get_prices_api(game_encode))
 
