@@ -28,9 +28,8 @@ def get_prices_api(game_name):
     """
     Gets the game prices in all the US board game shops.
     Checks if the game is currently available in the shop and
-    returns the list of dictionaries with each dictionary representing one
-    board game shop with the game available and containing info on:
-    store name, game price and the time it was last updated
+    returns the list of dictionaries (one dictionary for each shop)
+    with info on: store name and game price
     """
     game_id = get_game_bga_id(game_name)
     url = f'{url_base_api}game/prices?game_id={game_id}&client_id={api_client_id}'
@@ -39,20 +38,19 @@ def get_prices_api(game_name):
         data = json.load(url)
 
     results: list = []
-    counter = 1
+    shops: list = []
 
     for item in data["gameWithPrices"]["us"]:
-        if item["in_stock"] is True:
+        if item["in_stock"] is True and item["store_name"] not in shops:
             store_dict: dict = {"store_name": item["store_name"],
-                                "price": item["price"],
-                                "updated": item["updated_at_ago"]}
+                                "price": item["price"]}
+            shops.append(item["store_name"])
             results.append(store_dict)
-            counter += 1
 
     return results
 
 
 for game in game_name_list:
-    game_encode = urllib.parse.quote_plus(game)
+    game_encode = urllib.parse.quote_plus(game) # url-encodes the game name
     print(game, get_prices_api(game_encode))
 
