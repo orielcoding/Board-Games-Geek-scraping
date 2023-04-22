@@ -73,29 +73,23 @@ def normalize_objects(obj_values_lst: list) -> list:
     return normalized_list
 
 
-def select_fk(conn: engine, normalized_rows: list, tables, column_names: list, value_col: list) -> list:
+def select_fk(conn: engine, normalized_rows: list, table, table_fk_col: str, table_value_col: str, value_col: int) -> list:
     """
     This function changes the normalized rows to have foreign keys in relevant places instead of explicit values.
     params:
-            tables - tables list to inherit ID from.
-            column_name - the column to search for the ID in.
-            value_col - the column of the Game attributes in which we need to extract the value from.
-    returns: the row with the ID (fk) instead of the non-unique value.
+            table - Table to inherit ID from.
+            table_fk_col - The column name which is used as the fk (ID column mostly).
+            table_value_col - The column name in the table which we need to search the given value from the row.
+            value_col - The column index of the Game attributes which value we need to extract and replace with the fk.
+    returns: the row with the fk (mostly ID) instead of the non-unique value.
     """
-    try:
-        assert len(column_names) == len(value_col)
-        assert len(column_names) == len(tables)
-    except AssertionError as e:
-        raise ValueError('Program stopped because during search of fk, the shapes '
-                         'of columns to inherit from and columns to check their values dont match.')
 
     for index, row in enumerate(normalized_rows):
-        for fk in range(len(column_names)):
-            value = row[value_col[fk]]
-            query = select(tables[fk].columns[column_names[fk]]).where(tables[fk].columns[column_names[fk]] == value)
-            table_identifier: int = conn.execute(query).fetchone()[0]
-            normalized_rows[index][value_col[fk]] = table_identifier
-            print('table identifier:  ', table_identifier)
+        value = row[value_col]
+        query = select(table.columns[table_fk_col]).where(table.columns[table_value_col] == value)
+        # if str(table.name) == 'game_reimplements' and not conn.execute(query).fetchone():
+        table_identifier: int = conn.execute(query).fetchone()[0]
+        normalized_rows[index][value_col] = table_identifier
     return normalized_rows
 
 
@@ -132,18 +126,27 @@ def insert_to_db(table: MetaData, obj_normalized_list: list, conn: engine, uniqu
 
 
 def data_to_db(table: MetaData, obj_values_lst: list, unique_column: str = None, inherit_from=None,
-               match_col: list = None, fk_col: list = None):
+               match_fk_col: list = None, match_val_col: list = None, replace_val_col: list = [1]):
     """
     This is the main function. it accepts all required values for all the functions it calls.
     The data pass through multiple processing function until eventually it is saved to database in 1NF form.
     """
     with engine.connect() as conn:
+
         # normalize each object to 1NF form
         normalized_objects: list = normalize_objects(obj_values_lst)
 
         if inherit_from:  # then match_col and fk_col must be filled also.
-            # replace non int values with fk (ID's).
-            normalized_objects = select_fk(conn, normalized_objects, inherit_from, match_col, fk_col)
+            # replace values with fk (ID's).
+            try:
+                assert len(inherit_from) == len(match_fk_col)
+                assert len(inherit_from) == len(replace_val_col)
+            except AssertionError as e:
+                print('The shapes of columns to inherit from and columns to check their values dont match.')
+                return
+            for i in range(len(inherit_from)):
+                normalized_objects = select_fk(conn, normalized_objects, inherit_from[i], match_fk_col[i], match_val_col[i], replace_val_col[i])
+
         insert_to_db(table, normalized_objects, conn, unique_column)
 
 

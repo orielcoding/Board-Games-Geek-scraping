@@ -194,16 +194,16 @@ class Game:
         Returns dictionary containing statistical info about the games.
         """
         html = self.html_stats.find_all(class_="outline-item-description")
-        aggregate_rating = html[0].text.strip()
-        review_count = html[1].text.strip()
-        num_comments = html[4].text.strip()
-        page_views = html[6].text.strip()
+        aggregate_rating = float(html[0].text.strip())
+        review_count = int(html[1].text.strip().replace(',', ''))
+        num_comments = int(html[4].text.strip().replace(',', ''))
+        page_views = int(html[6].text.strip().replace(',', ''))
         overall_rank = int(re.match('[0-9]+', html[7].text.strip()).group())
 
         num_types: int = len(self.features["game_type"])
-        types_rank: list = []
-        for index in range(num_types):
-            types_rank.append(int(re.match('[0-9]+', html[8 + index].text.strip()).group()))
+        types_rank: int = int(re.match('[0-9]+', html[8].text.strip()).group())
+        # for index in range(num_types):
+        #     types_rank.append(int(re.match('[0-9]+', html[8 + index].text.strip()).group()))
         all_time_plays = int((html[9 + num_types - 1].text.strip().replace(',', '')))
         this_month_plays = int(html[10 + num_types - 1].text.strip().replace(',', ''))
         num_own = int(html[11 + num_types - 1].text.strip().replace(',', ''))
@@ -222,7 +222,7 @@ class Game:
         return self.info
 
 
-@exception(logger)
+# @exception(logger)
 def save_to_database(games: dict) -> None:
     """
     This function is called to save games into databses. This function use the saving_to_db class.
@@ -250,32 +250,41 @@ def save_to_database(games: dict) -> None:
 
     types = [[v.get_info()[key] for key in ['game_type']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['types'], types, unique_column='type')
-    #
-    # # related tables by 1 foreign key:
+
+    game_stats = [[v.get_info()[key] for key in ['game_site_id'] + list(v.get_stats().keys())] for v in games.values()]
+    saving_to_db.data_to_db(db_tables['game_stats'], game_stats)
+
+    # related tables by 1 foreign key:
 
     general_info = [[v.get_info()[key] for key in ['game_site_id', 'game_type', 'min_n_players', 'max_n_players',
-                            'weight', 'game_year', 'min_time', 'max_time', 'age_limit']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['general_info'], general_info, inherit_from=[db_tables['types']], match_col=['type_id'], fk_col=[0])
-
-    game_stats = [[v.get_info()[key] for key in ['game_site_id']+list(v.get_stats().keys())] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_stats'], game_stats)
+                                                   'weight', 'game_year', 'min_time', 'max_time', 'age_limit']] for v in
+                    games.values()]
+    saving_to_db.data_to_db(db_tables['general_info'], general_info, inherit_from=[db_tables['types']],
+                            match_fk_col=['type_id'], match_val_col=['type'])
 
     # related tables by 2 foreign keys:
 
     game_artists = [[v.get_info()[key] for key in ['game_site_id', 'artists', ]] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_artists'], game_artists, inherit_from=[db_tables['artists']], match_col=['artist_id'], fk_col=[1])
+    saving_to_db.data_to_db(db_tables['game_artists'], game_artists, inherit_from=[db_tables['artists']],
+                            match_fk_col=['artist_id'], match_val_col=['artist_name'])
 
     game_categories = [[v.get_info()[key] for key in ['game_site_id', 'category']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_categories'], game_categories, inherit_from=[db_tables['categories']], match_col=['category_id'])
+    saving_to_db.data_to_db(db_tables['game_category'], game_categories, inherit_from=[db_tables['categories']],
+                            match_fk_col=['category_id'], match_val_col=['category'])
 
     game_designers = [[v.get_info()[key] for key in ['game_site_id', 'designers']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_designers'], game_designers, inherit_from=[db_tables['designers']], match_col=['designer_id'])
+    saving_to_db.data_to_db(db_tables['game_designers'], game_designers, inherit_from=[db_tables['designers']],
+                            match_fk_col=['designer_id'], match_val_col=['designer_name'])
 
     game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']], match_col=['mechanics_id'])
+    saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']],
+                            match_fk_col=['mechanic_id'], match_val_col=['machanic'])
 
-    game_reimplements = [[v.get_info()[key] for key in ['game_site_id', 'game_site_id']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_reimplements'], game_reimplements, inherit_from=[db_tables['game']], match_col=['id'])
+    # game_reimplements = [[v.get_info()[key] for key in ['game_site_id', 'game_site_id']] for v in games.values()]
+
+    # Can be saved only if the reimplementation already found in the game table.
+    # saving_to_db.data_to_db(db_tables['game_reimplements'], game_reimplements, inherit_from=[db_tables['game']],
+    #                         match_fk_col=['site_id'], match_val_col=['name'])
 
 
 @exception(logger)
@@ -298,14 +307,14 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst[:20]):  # TODO: change eventually to full number
+        for index, url in enumerate(lst[50:99]):  # TODO: change eventually to full number
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, scraping_options)
             print(games[f"game_{list_index * 100 + index}"].get_site_id())
 
     return games
 
 
-@exception(logger)
+# @exception(logger)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_games', type=int, help='specifies number of pages to scrap')
@@ -332,8 +341,8 @@ def main():
     else:
         count = config["NUM_GAMES_TO_COLLECT"]
 
-    bgg_scrape_games(cli_options, count)
-
+    games = bgg_scrape_games(cli_options, count)
+    save_to_database(games)
 
     if args.database:
         """
