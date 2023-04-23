@@ -132,16 +132,19 @@ def insert_to_db(table: MetaData, obj_normalized_list: list, conn: engine, uniqu
                     raise e
 
 
-def data_to_db(table: MetaData, obj_values_lst: list, unique_column: str = None, inherit_from=None,
-               match_fk_col: list = None, match_val_col: list = None, replace_val_col: list = [1]):
+def data_to_db(table: MetaData, obj_values_lst: list, normalized: bool = False, unique_column: str = None,
+               inherit_from=None, match_fk_col: list = None, match_val_col: list = None, replace_val_col: list = [1]):
     """
     This is the main function. it accepts all required values for all the functions it calls.
     The data pass through multiple processing function until eventually it is saved to database in 1NF form.
     """
     with engine.connect() as conn:
 
-        # normalize each object to 1NF form
-        normalized_objects: list = normalize_objects(obj_values_lst)
+        if not normalized:
+            # normalize each object to 1NF form
+            normalized_objects: list = normalize_objects(obj_values_lst)
+        else:
+            normalized_objects = obj_values_lst
 
         if inherit_from:  # then match_col and fk_col must be filled also.
             # replace values with fk (ID's).

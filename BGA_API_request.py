@@ -1,7 +1,6 @@
 from urllib.request import urlopen
 import urllib.parse
 import json
-import re
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -9,7 +8,7 @@ with open("BGG_configuration.json", "r") as f:
 url_base_api = config["URL_BASE_API"]
 api_client_id = config["API_CLIENT_ID"]
 
-game_name_list = ['Brass: Birmingham', 'Pandemic Legacy: Season 1', 'Gloomhaven'] # for tuning
+game_name_list = ['Brass: Birmingham', 'Pandemic Legacy: Season 1', 'Gloomhaven']  # for tuning
 
 
 def get_game_bga_id(game_name):
@@ -43,10 +42,6 @@ def get_prices_api(game_name):
 
     for item in data["gameWithPrices"]["us"]:
         if item["in_stock"] is True and item["store_name"] not in sellers:
-            # store_dict: dict = {"store_name": item["store_name"],
-            #                     "price": item["price"]}
-            # shops.append(item["store_name"])
-            # results.append(store_dict)
             sellers.append(item["store_name"])
             prices.append(item["price"])
 

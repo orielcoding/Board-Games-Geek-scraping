@@ -29,14 +29,18 @@ logger = create_logger()
 
 def wrap(pre, post):
     """ Wrapper """
+
     def decorate(func):
         """ Decorator """
+
         def call(*args, **kwargs):
             pre(func)
             result = func(*args, **kwargs)
             post(func)
             return result
+
         return call
+
     return decorate
 
 
@@ -56,7 +60,9 @@ def exception(logger):
                 err += func.__name__
                 logger.exception(err)
             raise
+
         return wrapper
+
     return decorator
 
 
@@ -99,7 +105,7 @@ class Game:
         self.features = self.get_features()
         if len(self.options) == 0:
             self.info: dict = self.get_title() | self.get_gameplay() | self.get_features() \
-                              | self.get_creators() | self.get_stats() | self.get_site_id()
+                              | self.get_creators() | self.get_stats() | self.get_site_id() | self.get_prices()
         else:
             self.info: dict = self.get_title()
             if 'g' in self.options: self.info = self.info | self.get_gameplay()
@@ -208,8 +214,6 @@ class Game:
 
         num_types: int = len(self.features["game_type"])
         types_rank: int = int(re.match('[0-9]+', html[8].text.strip()).group())
-        # for index in range(num_types):
-        #     types_rank.append(int(re.match('[0-9]+', html[8 + index].text.strip()).group()))
         all_time_plays = int((html[9 + num_types - 1].text.strip().replace(',', '')))
         this_month_plays = int(html[10 + num_types - 1].text.strip().replace(',', ''))
         num_own = int(html[11 + num_types - 1].text.strip().replace(',', ''))
@@ -225,9 +229,8 @@ class Game:
         """
         Returns dictionary containing the us shops, where the game is sold and it's prices
         """
-        game_name = self.info["game_title"]
+        game_name = self.get_title()["game_title"]
         return BGA_API_request.get_prices_api(game_name)
-
 
     @wrap(entering, exception)
     def get_info(self) -> dict:
@@ -241,7 +244,7 @@ class Game:
 
 
 @wrap(entering, exception)
-def save_to_database(games: dict, include_api: bool = False) -> None:
+def save_to_database(games: dict, include_api: bool = True) -> None:
     """
     This function is called to save games into databses. This function use the saving_to_db class.
     """
@@ -251,7 +254,7 @@ def save_to_database(games: dict, include_api: bool = False) -> None:
 
     game = [[v.get_info()[key] for key in ['game_site_id', 'game_title']] for v in
             games.values()]
-    saving_to_db.data_to_db(db_tables['game'], game, unique_column='site_id')
+    saving_to_db.data_to_db(db_tables['game'], game, normalized=True, unique_column='site_id')
     logging.info(f"RESULT: populated game table")
 
     artists = [[v.get_info()[key] for key in ['artists']] for v in games.values()]
@@ -275,7 +278,7 @@ def save_to_database(games: dict, include_api: bool = False) -> None:
     logging.info(f"RESULT: populated types table")
 
     game_stats = [[v.get_info()[key] for key in ['game_site_id'] + list(v.get_stats().keys())] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['game_stats'], game_stats)
+    saving_to_db.data_to_db(db_tables['game_stats'], game_stats, normalized=True)
     logging.info(f"RESULT: populated game_stats table")
 
     # related tables by 1 foreign key:
@@ -309,13 +312,20 @@ def save_to_database(games: dict, include_api: bool = False) -> None:
     logging.info(f"RESULT: populated game_mechanics table")
 
     if include_api:
-        # TODO: add API sellers and prices as list to game.info with key names: sellers, prices
         sellers = [[v.get_info()[key] for key in ['sellers']] for v in games.values()]
         saving_to_db.data_to_db(db_tables['sellers'], sellers, unique_column='seller_id')
+        logging.info(f"RESULT: populated sellers table")
 
         game_sellers = [[v.get_info()[key] for key in ['game_site_id', 'sellers', 'prices']] for v in games.values()]
-        saving_to_db.data_to_db(db_tables['game_sellers'], game_sellers, inherit_from=[db_tables['sellers']],
-                                match_fk_col=['seller_id'], match_val_col=['sellers'])
+        # normalizing manually instead with built function because need to have specific sets of seller-price together.
+        normalized_rows = []
+        for i in game_sellers:
+            for j in range(len(i[1])):
+                normalized_rows.append([i[0], i[1][j], i[2][j]])
+        saving_to_db.data_to_db(db_tables['game_sellers'], normalized_rows, normalized=True,
+                                inherit_from=[db_tables['sellers']], match_fk_col=['seller_id'],
+                                match_val_col=['seller_name'])
+        logging.info(f"RESULT: populated game_sellers table")
 
 
 @wrap(entering, exception)
@@ -338,7 +348,7 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst):
+        for index, url in enumerate(lst[:2]):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, scraping_options)
             info_to_print = games[f"game_{list_index * 100 + index}"].get_site_id()
             print(info_to_print)
@@ -376,6 +386,7 @@ def main():
         count = config["NUM_GAMES_TO_COLLECT"]
 
     games = bgg_scrape_games(cli_options, count)
+    save_to_database(games)
 
     if args.database:
         save_to_database(games, include_api=args.api)
