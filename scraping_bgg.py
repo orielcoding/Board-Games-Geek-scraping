@@ -32,7 +32,7 @@ logger = create_logger()
 
 
 def exception(logger):
-    # logger is the logging object
+    # =logger is the logging object
     # exception is the decorator objects that logs every exception into log file
     def decorator(func):
         @wraps(func)
@@ -96,7 +96,6 @@ class Game:
             if 'f' in self.options: self.info = self.info | self.get_features()
             if 'c' in self.options: self.info = self.info | self.get_creators()
             if 's' in self.options: self.info = self.info | self.get_stats()
-            # TODO add option the extract site id? or maybe not...
 
     @exception(logger)
     def get_site_id(self):
@@ -131,7 +130,6 @@ class Game:
 
         num_pattern = gameplay_items[0].find_all('span', class_='ng-binding ng-scope')
         if len(num_pattern) > 1:
-            # num_players = tuple([int(num_pattern[0].text.strip()), int(num_pattern[1].text.strip()[1:])])
             min_n_players = int(num_pattern[0].text.strip())
             max_n_players = int(num_pattern[1].text.strip()[1:])
         else:
@@ -141,7 +139,6 @@ class Game:
         time_pattern = gameplay_items[1].find_all('span', class_='ng-binding ng-scope')
 
         if len(time_pattern) > 1:
-            # time_duration = tuple([int(time_pattern[0].text.strip()), int(time_pattern[1].text.strip()[1:])])
             min_time = int(time_pattern[0].text.strip())
             max_time = int(time_pattern[1].text.strip()[1:])
         else:
@@ -220,9 +217,11 @@ class Game:
         """
         return self.info
 
+    def __setitem__(self, key, value):
+        self.info[key] = value
 
 # @exception(logger)
-def save_to_database(games: dict) -> None:
+def save_to_database(games: dict, include_API: bool = False) -> None:
     """
     This function is called to save games into databses. This function use the saving_to_db class.
     """
@@ -278,6 +277,15 @@ def save_to_database(games: dict) -> None:
     game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']],
                             match_fk_col=['mechanic_id'], match_val_col=['machanic'])
+
+    if include_API:
+        # TODO: add API sellers and prices as list to game.info with key names: sellers, prices
+        sellers = [[v.get_info()[key] for key in ['sellers']] for v in games.values()]
+        saving_to_db.data_to_db(db_tables['sellers'], sellers, unique_column='seller_id')
+
+        game_sellers = [[v.get_info()[key] for key in ['game_site_id', 'sellers', 'prices']] for v in games.values()]
+        saving_to_db.data_to_db(db_tables['game_sellers'], game_sellers, inherit_from=[db_tables['sellers']],
+                                match_fk_col=['seller_id'], match_val_col=['sellers'])
 
 
 @exception(logger)
