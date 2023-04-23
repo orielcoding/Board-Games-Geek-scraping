@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, exc
 from sqlalchemy import MetaData
 from sqlalchemy import select
 import bs4
@@ -121,8 +121,15 @@ def insert_to_db(table: MetaData, obj_normalized_list: list, conn: engine, uniqu
                     break  # skipping row because the unique value already appears in the table.
             data_dict[table.columns[i]] = row[i - delay]  # key is column name of table
         if data_dict != {}:
-            conn.execute(table.insert().values(data_dict))
-            conn.commit()
+            try:
+                conn.execute(table.insert().values(data_dict))
+                conn.commit()
+            except exc.IntegrityError as e:
+                # ignore error if primary key already exists
+                if "Duplicate entry" in str(e):
+                    pass
+                else:
+                    raise e
 
 
 def data_to_db(table: MetaData, obj_values_lst: list, unique_column: str = None, inherit_from=None,

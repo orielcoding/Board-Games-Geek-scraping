@@ -169,9 +169,8 @@ class Game:
         mechanism: tuple = tuple(
             [i.get('title') for i in features_items[2].find_all('a', {'class': 'ng-binding'})[:-1]])
 
-        reimplements = tuple([i.get('title') for i in features_items[-1].find_all('a', {'class': 'ng-binding'})[:-1]])
 
-        return {"game_type": game_type, "category": category, "mechanism": mechanism, "reimplements": reimplements}
+        return {"game_type": game_type, "category": category, "mechanism": mechanism}
 
     @exception(logger)
     def get_creators(self) -> dict:
@@ -280,12 +279,6 @@ def save_to_database(games: dict) -> None:
     saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']],
                             match_fk_col=['mechanic_id'], match_val_col=['machanic'])
 
-    # game_reimplements = [[v.get_info()[key] for key in ['game_site_id', 'game_site_id']] for v in games.values()]
-
-    # Can be saved only if the reimplementation already found in the game table.
-    # saving_to_db.data_to_db(db_tables['game_reimplements'], game_reimplements, inherit_from=[db_tables['game']],
-    #                         match_fk_col=['site_id'], match_val_col=['name'])
-
 
 @exception(logger)
 def bgg_scrape_games(scraping_options: list, count: int) -> dict:
@@ -307,7 +300,7 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst[50:99]):  # TODO: change eventually to full number
+        for index, url in enumerate(lst):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, scraping_options)
             print(games[f"game_{list_index * 100 + index}"].get_site_id())
 
@@ -342,13 +335,9 @@ def main():
         count = config["NUM_GAMES_TO_COLLECT"]
 
     games = bgg_scrape_games(cli_options, count)
-    save_to_database(games)
 
     if args.database:
-        """
-        writes the scraped data to database
-        """
-        pass
+        save_to_database(games)
 
 
 if __name__ == "__main__":
