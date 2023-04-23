@@ -7,6 +7,7 @@ import argparse
 import logging
 import re
 import saving_to_db
+import BGA_API_request
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -105,6 +106,7 @@ class Game:
             if 'f' in self.options: self.info = self.info | self.get_features()
             if 'c' in self.options: self.info = self.info | self.get_creators()
             if 's' in self.options: self.info = self.info | self.get_stats()
+            if 'a' in self.options: self.info = self.info | self.get_prices()
 
     @wrap(entering, exception)
     def get_site_id(self):
@@ -219,6 +221,15 @@ class Game:
                 "num_wishlist": num_wishlist, "review_count": review_count}
 
     @wrap(entering, exception)
+    def get_prices(self) -> dict:
+        """
+        Returns dictionary containing the us shops, where the game is sold and it's prices
+        """
+        game_name = self.info["game_title"]
+        return BGA_API_request.get_prices_api(game_name)
+
+
+    @wrap(entering, exception)
     def get_info(self) -> dict:
         """
         Returns all the info of a game
@@ -230,7 +241,7 @@ class Game:
 
 
 @wrap(entering, exception)
-def save_to_database(games: dict) -> None:
+def save_to_database(games: dict, include_api: bool = False) -> None:
     """
     This function is called to save games into databses. This function use the saving_to_db class.
     """
@@ -297,14 +308,14 @@ def save_to_database(games: dict) -> None:
                             match_fk_col=['mechanic_id'], match_val_col=['machanic'])
     logging.info(f"RESULT: populated game_mechanics table")
 
-    # if include_API:
-    #     # TODO: add API sellers and prices as list to game.info with key names: sellers, prices
-    #     sellers = [[v.get_info()[key] for key in ['sellers']] for v in games.values()]
-    #     saving_to_db.data_to_db(db_tables['sellers'], sellers, unique_column='seller_id')
-    #
-    #     game_sellers = [[v.get_info()[key] for key in ['game_site_id', 'sellers', 'prices']] for v in games.values()]
-    #     saving_to_db.data_to_db(db_tables['game_sellers'], game_sellers, inherit_from=[db_tables['sellers']],
-    #                             match_fk_col=['seller_id'], match_val_col=['sellers'])
+    if include_api:
+        # TODO: add API sellers and prices as list to game.info with key names: sellers, prices
+        sellers = [[v.get_info()[key] for key in ['sellers']] for v in games.values()]
+        saving_to_db.data_to_db(db_tables['sellers'], sellers, unique_column='seller_id')
+
+        game_sellers = [[v.get_info()[key] for key in ['game_site_id', 'sellers', 'prices']] for v in games.values()]
+        saving_to_db.data_to_db(db_tables['game_sellers'], game_sellers, inherit_from=[db_tables['sellers']],
+                                match_fk_col=['seller_id'], match_val_col=['sellers'])
 
 
 @wrap(entering, exception)
@@ -344,6 +355,7 @@ def main():
     parser.add_argument('-g', '--gameplay', action='store_true', help='limits data collection to info on gameplay')
     parser.add_argument('-f', '--features', action='store_true', help='limits data collection to info about features')
     parser.add_argument('-d', '--database', action='store_true', help='to save the info into sql database')
+    parser.add_argument('-a', '--api', action='store_true', help='to also get the prices from BGA API')
 
     args = parser.parse_args()
 
@@ -356,6 +368,7 @@ def main():
     if args.creators: cli_options.append('c')
     if args.gameplay: cli_options.append('g')
     if args.features: cli_options.append('f')
+    if args.api: cli_options.append('a')
 
     if args.num_games:
         count = args.num_games
@@ -365,7 +378,7 @@ def main():
     games = bgg_scrape_games(cli_options, count)
 
     if args.database:
-        save_to_database(games)
+        save_to_database(games, include_api=args.api)
 
 
 if __name__ == "__main__":

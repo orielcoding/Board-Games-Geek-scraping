@@ -26,31 +26,30 @@ def get_game_bga_id(game_name):
 
 def get_prices_api(game_name):
     """
+    Receives the game_name.
     Gets the game prices in all the US board game shops.
     Checks if the game is currently available in the shop and
     returns the list of dictionaries (one dictionary for each shop)
     with info on: store name and game price
     """
-    game_id = get_game_bga_id(game_name)
+    game_encode = urllib.parse.quote_plus(game_name)  # url-encodes the game name
+    game_id = get_game_bga_id(game_encode)
     url = f'{url_base_api}game/prices?game_id={game_id}&client_id={api_client_id}'
-    print(url)
     with urlopen(url) as url:
         data = json.load(url)
 
-    results: list = []
-    shops: list = []
+    sellers: list = []
+    prices: list = []
 
     for item in data["gameWithPrices"]["us"]:
-        if item["in_stock"] is True and item["store_name"] not in shops:
-            store_dict: dict = {"store_name": item["store_name"],
-                                "price": item["price"]}
-            shops.append(item["store_name"])
-            results.append(store_dict)
+        if item["in_stock"] is True and item["store_name"] not in sellers:
+            # store_dict: dict = {"store_name": item["store_name"],
+            #                     "price": item["price"]}
+            # shops.append(item["store_name"])
+            # results.append(store_dict)
+            sellers.append(item["store_name"])
+            prices.append(item["price"])
 
-    return results
+    return {"sellers": tuple(sellers), "prices": tuple(prices)}
 
-
-for game in game_name_list:
-    game_encode = urllib.parse.quote_plus(game) # url-encodes the game name
-    print(game, get_prices_api(game_encode))
 

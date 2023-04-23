@@ -6,5 +6,7 @@
   "HEADERS": {"User-Agent": "Mozilla/5.0"},
   "BATCH_NUM": 10,
   "PATH_TO_CHROME": "C:/Program Files/chromedriver.exe",
-  "SQLAlchemy_db_connection": "mysql+pymysql://root:root@localhost/target_db"
+  "SQLAlchemy_db_connection": "mysql+pymysql://root:root@localhost/target_db",
+  "URL_BASE_API": "https://api.boardgameatlas.com/api/",
+  "API_CLIENT_ID": "edJztV7GJv"
 }
