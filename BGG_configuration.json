@@ -1,12 +1,27 @@
 {
-  "NUM_GAMES_TO_COLLECT": 10,
-  "NUM_GAMES_PER_PAGE": 100,
-  "URL": "https://boardgamegeek.com/browse/boardgame/page/",
-  "DOMAIN": "https://boardgamegeek.com/",
-  "HEADERS": {"User-Agent": "Mozilla/5.0"},
-  "BATCH_NUM": 10,
-  "PATH_TO_CHROME": "C:/Program Files/chromedriver.exe",
-  "SQLAlchemy_db_connection": "mysql+pymysql://root:root@localhost/target_db",
-  "URL_BASE_API": "https://api.boardgameatlas.com/api/",
-  "API_CLIENT_ID": "edJztV7GJv"
+  "scraping":
+  {
+    "NUM_GAMES_TO_COLLECT": 10,
+    "NUM_GAMES_PER_PAGE": 100,
+    "URL": "https://boardgamegeek.com/browse/boardgame/page/",
+    "DOMAIN": "https://boardgamegeek.com/",
+    "HEADERS": {
+      "User-Agent": "Mozilla/5.0"
+    },
+    "BATCH_NUM": 10,
+    "PATH_TO_CHROME": "C:/Program Files/chromedriver.exe",
+    "URL_BASE_API": "https://api.boardgameatlas.com/api/",
+    "API_CLIENT_ID": "edJztV7GJv"
+  },
+  "alchemy":
+  {
+    "db_name": "bgg_db",
+    "SQLAlchemy_db_connection": "mysql+pymysql://root:root@localhost/bgg_db"
+  },
+  "mysql":
+  {
+    "host": "localhost",
+    "user": "root",
+    "password": "root"
+  }
 }

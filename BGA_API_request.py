@@ -5,8 +5,8 @@ import json
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
 
-url_base_api = config["URL_BASE_API"]
-api_client_id = config["API_CLIENT_ID"]
+url_base_api = config['scraping']["URL_BASE_API"]
+api_client_id = config['scraping']["API_CLIENT_ID"]
 
 game_name_list = ['Brass: Birmingham', 'Pandemic Legacy: Season 1', 'Gloomhaven']  # for tuning
 

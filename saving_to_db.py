@@ -8,7 +8,7 @@ with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
 
 # Create a MySQL engine
-engine = create_engine(config['SQLAlchemy_db_connection'])
+engine = create_engine(config['alchemy']['SQLAlchemy_db_connection'])
 
 
 def connect_to_db_tables() -> dict:

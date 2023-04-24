@@ -9,6 +9,7 @@ import re
 import saving_to_db
 import BGA_API_request
 import functools
+import create_db
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -52,18 +53,18 @@ def exception(func):
 
 
 @exception
-def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> list[str]:
+def get_urls(page_num: int, quantity: int = config['scraping']["NUM_GAMES_PER_PAGE"]) -> list[str]:
     """
     This func sends a request to a html page that contain multiple desired urls and returns a list of them
     """
-    result = requests.get(config["URL"] + f"{page_num}", headers=config["HEADERS"])
+    result = requests.get(config['scraping']["URL"] + f"{page_num}", headers=config['scraping']["HEADERS"])
 
     doc = BeautifulSoup(result.text, "lxml")
 
     # class is identifier to find where the links to games pages are located inside the text
     tags = doc.find_all(class_="collection_objectname browse")
 
-    return [config["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags[0:quantity]]
+    return [config['scraping']["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags[0:quantity]]
 
 
 @exception
@@ -229,7 +230,7 @@ class Game:
 
 
 @exception
-def save_to_database(games: dict, include_api: bool = True) -> None:
+def save_to_database(games: dict, include_api: bool = False) -> None:
     """
     This function is called to save games into databases. This function use the saving_to_db class.
     """
@@ -321,15 +322,16 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
     """
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
-    options.add_argument(f'user-agent={config["HEADERS"]["User-Agent"]}')
+    options.add_argument(f'user-agent={config["scraping"]["HEADERS"]["User-Agent"]}')
     driver = Chrome(options=options)
     driver.implicitly_wait(2)
 
     games_pages_urls: list = []
-    for index in range(count // config["NUM_GAMES_PER_PAGE"]):
+    for index in range(count // config['scraping']["NUM_GAMES_PER_PAGE"]):
         games_pages_urls.append(get_urls(index))
 
-    games_pages_urls.append(get_urls(count // config["NUM_GAMES_PER_PAGE"], count % config["NUM_GAMES_PER_PAGE"]))
+    games_pages_urls.append(get_urls(count // config['scraping']["NUM_GAMES_PER_PAGE"], count % config['scraping']
+    ["NUM_GAMES_PER_PAGE"]))
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
@@ -365,12 +367,18 @@ def main():
     if args.features: cli_options.append('f')
     if args.api: cli_options.append('a')
 
-    count = args.num_games if args.num_games else config["NUM_GAMES_TO_COLLECT"]
+    if args.num_games:
+        count = args.num_games
+    else:
+        count = config['scraping']["NUM_GAMES_TO_COLLECT"]
 
+    # scraping games
     games = bgg_scrape_games(cli_options, count)
-    save_to_database(games)
 
     if args.database:
+        # creating db if required
+        create_db.main()
+        # saving game instances information into database
         save_to_database(games, include_api=args.api)
 
 
