@@ -3,6 +3,7 @@ from sqlalchemy import MetaData
 from sqlalchemy import select
 import bs4
 import json
+from logging_decorator import exception
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -11,6 +12,7 @@ with open("BGG_configuration.json", "r") as f:
 engine = create_engine(config['alchemy']['SQLAlchemy_db_connection'])
 
 
+@exception
 def connect_to_db_tables() -> dict:
     """
     This function reflects database, recreate the tables from it, and return them.
@@ -42,6 +44,7 @@ def connect_to_db_tables() -> dict:
     return tables
 
 
+@exception
 def normalize_single_obj(obj_features: list) -> list:
     """
         This function normalize single object in a recursive way.
@@ -62,6 +65,7 @@ def normalize_single_obj(obj_features: list) -> list:
     return [obj_features]
 
 
+@exception
 def normalize_objects(obj_values_lst: list) -> list:
     """
     This func normalize all the objects. it sends single object to sub-function each time.
@@ -74,6 +78,7 @@ def normalize_objects(obj_values_lst: list) -> list:
     return normalized_list
 
 
+@exception
 def select_fk(conn: engine, normalized_rows: list,
               table, table_fk_col: str, table_value_col: str, value_col: int) -> list:
     """
@@ -95,6 +100,7 @@ def select_fk(conn: engine, normalized_rows: list,
     return normalized_rows
 
 
+@exception
 def insert_to_db(table: MetaData, obj_normalized_list: list, conn: engine, unique_col: str = None) -> None:
     """
     This function accepts list of normalized rows and saves them to db in relevant tables, while preventing duplicates.
@@ -134,6 +140,7 @@ def insert_to_db(table: MetaData, obj_normalized_list: list, conn: engine, uniqu
                     raise e
 
 
+@exception
 def data_to_db(table: MetaData, obj_values_lst: list, normalized: bool = False, unique_column: str = None,
                inherit_from=None, match_fk_col: list = None,
                match_val_col: list = None, replace_val_col: list = [1]):
@@ -165,6 +172,7 @@ def data_to_db(table: MetaData, obj_values_lst: list, normalized: bool = False, 
         insert_to_db(table, normalized_objects, conn, unique_column)
 
 
+@exception
 def describe_table(table: MetaData):
     """
     This function display data of specific table in db.

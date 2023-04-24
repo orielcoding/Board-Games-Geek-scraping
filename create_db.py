@@ -70,7 +70,7 @@ def main():
     class Mechanics(Base):
         __tablename__ = 'mechanics'
         mechanic_id = Column(Integer, primary_key=True, autoincrement=True)
-        machanic = Column(String(60))
+        mechanic = Column(String(60))
 
 
     class Sellers(Base):

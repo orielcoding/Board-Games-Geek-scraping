@@ -8,48 +8,14 @@ import logging
 import re
 import saving_to_db
 import BGA_API_request
-import functools
 import create_db
+from logging_decorator import exception, create_logger
+
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
 
-
-def create_logger():
-    # creates a logger object
-
-    log_file = "bgg_exception.log"
-    log_level = logging.INFO
-    logging.basicConfig(level=log_level, filename=log_file, filemode="w+",
-                        format="%(asctime)-15s %(levelname)-8s %(message)s")
-    lg = logging.getLogger("exc_logger")
-    return lg
-
-
-def exception(func):
-    """
-    A decorator that wraps the passed in info-logger and also logs
-    exceptions should one occur
-    """
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        logger = create_logger()
-        try:
-            result = func(*args, **kwargs)
-            logger.info("Executing %s", func.__name__)
-            return result
-        except ValueError:
-            logger.exception("message")
-            raise
-        except KeyboardInterrupt:
-            raise
-        except Exception:
-            # log the exception
-            err = f"There was an exception in {func.__name__}:"
-            logger.exception(err)
-            # re-raise the exception
-            raise
-    return wrapper
+logger = create_logger()
 
 
 @exception
@@ -89,7 +55,7 @@ class Game:
         self.credits_panel = self.html.find(class_="credits ng-scope")
         self.features_panel = self.html.find(class_="panel panel-bottom game-classification ng-scope")
         self.features = self.get_features()
-        if len(self.options) == 0:
+        if len(self.options) == 0 or 'a' in self.options:
             self.info: dict = self.get_title() | self.get_gameplay() | self.get_features() \
                               | self.get_creators() | self.get_stats() | self.get_site_id() | self.get_prices()
         else:
@@ -241,31 +207,31 @@ def save_to_database(games: dict, include_api: bool = False) -> None:
     game = [[v.get_info()[key] for key in ['game_site_id', 'game_title']] for v in
             games.values()]
     saving_to_db.data_to_db(db_tables['game'], game, normalized=True, unique_column='site_id')
-    logging.info(f"RESULT: populated game table")
+    logger.info(f"RESULT: populated game table")
 
     artists = [[v.get_info()[key] for key in ['artists']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['artists'], artists, unique_column='artist_name')
-    logging.info(f"RESULT: populated artists table")
+    logger.info(f"RESULT: populated artists table")
 
     categories = [[v.get_info()[key] for key in ['category']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['categories'], categories, unique_column='category')
-    logging.info(f"RESULT: populated categories table")
+    logger.info(f"RESULT: populated categories table")
 
     designers = [[v.get_info()[key] for key in ['designers']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['designers'], designers, unique_column='designer_name')
-    logging.info(f"RESULT: populated designers table")
+    logger.info(f"RESULT: populated designers table")
 
     mechanics = [[v.get_info()[key] for key in ['mechanism']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['mechanics'], mechanics, unique_column='mechanic')
-    logging.info(f"RESULT: populated mechanics table")
+    logger.info(f"RESULT: populated mechanics table")
 
     types = [[v.get_info()[key] for key in ['game_type']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['types'], types, unique_column='type')
-    logging.info(f"RESULT: populated types table")
+    logger.info(f"RESULT: populated types table")
 
     game_stats = [[v.get_info()[key] for key in ['game_site_id'] + list(v.get_stats().keys())] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_stats'], game_stats, normalized=True)
-    logging.info(f"RESULT: populated game_stats table")
+    logger.info(f"RESULT: populated game_stats table")
 
     # related tables by 1 foreign key:
     general_info = [[v.get_info()[key] for key in ['game_site_id', 'game_type', 'min_n_players', 'max_n_players',
@@ -273,34 +239,34 @@ def save_to_database(games: dict, include_api: bool = False) -> None:
                     games.values()]
     saving_to_db.data_to_db(db_tables['general_info'], general_info, inherit_from=[db_tables['types']],
                             match_fk_col=['type_id'], match_val_col=['type'])
-    logging.info(f"RESULT: populated general_info table")
+    logger.info(f"RESULT: populated general_info table")
 
     # related tables by 2 foreign keys:
 
     game_artists = [[v.get_info()[key] for key in ['game_site_id', 'artists', ]] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_artists'], game_artists, inherit_from=[db_tables['artists']],
                             match_fk_col=['artist_id'], match_val_col=['artist_name'])
-    logging.info(f"RESULT: populated game_artists table")
+    logger.info(f"RESULT: populated game_artists table")
 
     game_categories = [[v.get_info()[key] for key in ['game_site_id', 'category']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_category'], game_categories, inherit_from=[db_tables['categories']],
                             match_fk_col=['category_id'], match_val_col=['category'])
-    logging.info(f"RESULT: populated game_categories table")
+    logger.info(f"RESULT: populated game_categories table")
 
     game_designers = [[v.get_info()[key] for key in ['game_site_id', 'designers']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_designers'], game_designers, inherit_from=[db_tables['designers']],
                             match_fk_col=['designer_id'], match_val_col=['designer_name'])
-    logging.info(f"RESULT: populated game_designers table")
+    logger.info(f"RESULT: populated game_designers table")
 
     game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']],
                             match_fk_col=['mechanic_id'], match_val_col=['mechanic'])
-    logging.info(f"RESULT: populated game_mechanics table")
+    logger.info(f"RESULT: populated game_mechanics table")
 
     if include_api:
         sellers = [[v.get_info()[key] for key in ['sellers']] for v in games.values()]
         saving_to_db.data_to_db(db_tables['sellers'], sellers, unique_column='seller_id')
-        logging.info(f"RESULT: populated sellers table")
+        logger.info(f"RESULT: populated sellers table")
 
         game_sellers = [[v.get_info()[key] for key in ['game_site_id', 'sellers', 'prices']] for v in games.values()]
         # normalizing manually instead with built function because need to have specific sets of seller-price together.
@@ -311,7 +277,7 @@ def save_to_database(games: dict, include_api: bool = False) -> None:
         saving_to_db.data_to_db(db_tables['game_sellers'], normalized_rows, normalized=True,
                                 inherit_from=[db_tables['sellers']], match_fk_col=['seller_id'],
                                 match_val_col=['seller_name'])
-        logging.info(f"RESULT: populated game_sellers table")
+        logger.info(f"RESULT: populated game_sellers table")
 
 
 @exception
@@ -330,8 +296,8 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
     for index in range(count // config['scraping']["NUM_GAMES_PER_PAGE"]):
         games_pages_urls.append(get_urls(index))
 
-    games_pages_urls.append(get_urls(count // config['scraping']["NUM_GAMES_PER_PAGE"], count % config['scraping']
-    ["NUM_GAMES_PER_PAGE"]))
+    games_pages_urls.append(get_urls(count // config['scraping']["NUM_GAMES_PER_PAGE"],
+                                     count % config['scraping']["NUM_GAMES_PER_PAGE"]))
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
@@ -339,7 +305,7 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, scraping_options)
             info_to_print = games[f"game_{list_index * 100 + index}"].get_site_id()
             print(info_to_print)
-            logging.info(f"RESULT: scraped game with {info_to_print}")
+            logger.info(f"RESULT: scraped game with {info_to_print}")
     return games
 
 
@@ -374,6 +340,11 @@ def main():
 
     # scraping games
     games = bgg_scrape_games(cli_options, count)
+
+    # creating db if required
+    create_db.main()
+    # saving game instances information into database
+    save_to_database(games, include_api=args.api)
 
     if args.database:
         # creating db if required

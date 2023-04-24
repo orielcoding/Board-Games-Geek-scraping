@@ -1,7 +1,7 @@
 {
   "scraping":
   {
-    "NUM_GAMES_TO_COLLECT": 100,
+    "NUM_GAMES_TO_COLLECT": 1000,
     "NUM_GAMES_PER_PAGE": 100,
     "URL": "https://boardgamegeek.com/browse/boardgame/page/",
     "DOMAIN": "https://boardgamegeek.com/",
