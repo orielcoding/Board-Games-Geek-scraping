@@ -46,5 +46,3 @@ def get_prices_api(game_name):
             prices.append(item["price"])
 
     return {"sellers": tuple(sellers), "prices": tuple(prices)}
-
-

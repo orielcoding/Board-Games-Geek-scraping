@@ -8,6 +8,7 @@ import logging
 import re
 import saving_to_db
 import BGA_API_request
+import functools
 
 with open("BGG_configuration.json", "r") as f:
     config = json.load(f)
@@ -20,53 +21,37 @@ def create_logger():
     log_level = logging.INFO
     logging.basicConfig(level=log_level, filename=log_file, filemode="w+",
                         format="%(asctime)-15s %(levelname)-8s %(message)s")
-    logger = logging.getLogger("exc_logger")
-    return logger
+    lg = logging.getLogger("exc_logger")
+    return lg
 
 
-logger = create_logger()
-
-
-def wrap(pre, post):
-    """ Wrapper """
-
-    def decorate(func):
-        """ Decorator """
-
-        def call(*args, **kwargs):
-            pre(func)
+def exception(func):
+    """
+    A decorator that wraps the passed in info-logger and also logs
+    exceptions should one occur
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        logger = create_logger()
+        try:
             result = func(*args, **kwargs)
-            post(func)
+            logger.info("Executing %s", func.__name__)
             return result
-
-        return call
-
-    return decorate
-
-
-def entering(func):
-    """ Pre function logging """
-    logger.info("Entered %s", func.__name__)
-
-
-def exception(logger):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except:
-                # log the exception
-                err = "There was an exception in  "
-                err += func.__name__
-                logger.exception(err)
+        except ValueError:
+            logger.exception("message")
             raise
+        except KeyboardInterrupt:
+            raise
+        except Exception:
+            # log the exception
+            err = f"There was an exception in {func.__name__}:"
+            logger.exception(err)
+            # re-raise the exception
+            raise
+    return wrapper
 
-        return wrapper
 
-    return decorator
-
-
-@wrap(entering, exception)
+@exception
 def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> list[str]:
     """
     This func sends a request to a html page that contain multiple desired urls and returns a list of them
@@ -81,13 +66,13 @@ def get_urls(page_num: int, quantity: int = config["NUM_GAMES_PER_PAGE"]) -> lis
     return [config["DOMAIN"] + tag.find(attrs={"href": True}).get("href") for tag in tags[0:quantity]]
 
 
-@wrap(entering, exception)
+@exception
 def get_html_body(url: str, driver):
     driver.get(url)
     return BeautifulSoup(driver.execute_script("return document.body.outerHTML;"), "lxml")
 
 
-@wrap(entering, exception)
+@exception
 def get_html_head(url: str, driver):
     driver.get(url)
     return BeautifulSoup(driver.execute_script("return document.head.outerHTML;"), "lxml")
@@ -114,13 +99,13 @@ class Game:
             if 's' in self.options: self.info = self.info | self.get_stats()
             if 'a' in self.options: self.info = self.info | self.get_prices()
 
-    @wrap(entering, exception)
+    @exception
     def get_site_id(self):
         html = self.html_head.find("link")
         game_site_id: int = int(re.search(r'\d+', str(html)).group())
         return {"game_site_id": game_site_id}
 
-    @wrap(entering, exception)
+    @exception
     def get_title(self) -> dict:
         """
         Returns dictionary containing game title and release year
@@ -138,7 +123,7 @@ class Game:
 
         return {"game_title": game_title, "game_year": game_year}
 
-    @wrap(entering, exception)
+    @exception
     def get_gameplay(self) -> dict:
         """
         Returns dictionary containing: num players, time duration, age limit, weight (complexity of the game)
@@ -169,7 +154,7 @@ class Game:
         return {"min_n_players": min_n_players, "max_n_players": max_n_players, "min_time": min_time,
                 "max_time": max_time, "age_limit": age_limit, "weight": weight}
 
-    @wrap(entering, exception)
+    @exception
     def get_features(self) -> dict:
         """
         Returns dictionary containing: type, category, mechanism
@@ -185,7 +170,7 @@ class Game:
 
         return {"game_type": game_type, "category": category, "mechanism": mechanism}
 
-    @wrap(entering, exception)
+    @exception
     def get_creators(self) -> dict:
         """
         Returns dictionary containing: designers and artists
@@ -200,7 +185,7 @@ class Game:
 
         return {"designers": designers, "artists": artists}
 
-    @wrap(entering, exception)
+    @exception
     def get_stats(self) -> dict:
         """
         Returns dictionary containing statistical info about the games.
@@ -224,15 +209,15 @@ class Game:
                 "this_month_plays": this_month_plays, "num_own": num_own,
                 "num_wishlist": num_wishlist, "review_count": review_count}
 
-    @wrap(entering, exception)
+    @exception
     def get_prices(self) -> dict:
         """
-        Returns dictionary containing the us shops, where the game is sold and it's prices
+        Returns dictionary containing the 'us' shops, where the game is sold and it's prices
         """
         game_name = self.get_title()["game_title"]
         return BGA_API_request.get_prices_api(game_name)
 
-    @wrap(entering, exception)
+    @exception
     def get_info(self) -> dict:
         """
         Returns all the info of a game
@@ -243,10 +228,10 @@ class Game:
         self.info[key] = value
 
 
-@wrap(entering, exception)
+@exception
 def save_to_database(games: dict, include_api: bool = True) -> None:
     """
-    This function is called to save games into databses. This function use the saving_to_db class.
+    This function is called to save games into databases. This function use the saving_to_db class.
     """
     db_tables = saving_to_db.connect_to_db_tables()
 
@@ -270,7 +255,7 @@ def save_to_database(games: dict, include_api: bool = True) -> None:
     logging.info(f"RESULT: populated designers table")
 
     mechanics = [[v.get_info()[key] for key in ['mechanism']] for v in games.values()]
-    saving_to_db.data_to_db(db_tables['mechanics'], mechanics, unique_column='machanic')
+    saving_to_db.data_to_db(db_tables['mechanics'], mechanics, unique_column='mechanic')
     logging.info(f"RESULT: populated mechanics table")
 
     types = [[v.get_info()[key] for key in ['game_type']] for v in games.values()]
@@ -308,7 +293,7 @@ def save_to_database(games: dict, include_api: bool = True) -> None:
 
     game_mechanics = [[v.get_info()[key] for key in ['game_site_id', 'mechanism']] for v in games.values()]
     saving_to_db.data_to_db(db_tables['game_mechanics'], game_mechanics, inherit_from=[db_tables['mechanics']],
-                            match_fk_col=['mechanic_id'], match_val_col=['machanic'])
+                            match_fk_col=['mechanic_id'], match_val_col=['mechanic'])
     logging.info(f"RESULT: populated game_mechanics table")
 
     if include_api:
@@ -328,7 +313,7 @@ def save_to_database(games: dict, include_api: bool = True) -> None:
         logging.info(f"RESULT: populated game_sellers table")
 
 
-@wrap(entering, exception)
+@exception
 def bgg_scrape_games(scraping_options: list, count: int) -> dict:
     """
     This function scrape data. specifically, it scrapes data from bgg site.
@@ -356,7 +341,7 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
     return games
 
 
-@wrap(entering, exception)
+@exception
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_games', type=int, help='specifies number of pages to scrap')
@@ -380,10 +365,7 @@ def main():
     if args.features: cli_options.append('f')
     if args.api: cli_options.append('a')
 
-    if args.num_games:
-        count = args.num_games
-    else:
-        count = config["NUM_GAMES_TO_COLLECT"]
+    count = args.num_games if args.num_games else config["NUM_GAMES_TO_COLLECT"]
 
     games = bgg_scrape_games(cli_options, count)
     save_to_database(games)

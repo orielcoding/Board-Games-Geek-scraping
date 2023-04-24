@@ -32,7 +32,7 @@ def connect_to_db_tables() -> dict:
     for table_name in table_names:
         tables[table_name] = metadata.tables[table_name]
 
-    # This lines show relationsheeps between tables by foreign keys.
+    # This lines show relationships between tables by foreign keys.
     # for table_name, table in tables.items():
     #     for column in table.columns:
     #         for fk in column.foreign_keys:
@@ -44,8 +44,9 @@ def connect_to_db_tables() -> dict:
 
 def normalize_single_obj(obj_features: list) -> list:
     """
-        This function normalize single object in a recursive way. it takes each column of object's given data, and
-        seperate it to have single values.
+        This function normalize single object in a recursive way.
+        It takes each column of object's given data, and
+        separates it to have single values.
         The function returns list of normalized rows of the object.
         """
     normalized_rows: list = []
@@ -63,7 +64,7 @@ def normalize_single_obj(obj_features: list) -> list:
 
 def normalize_objects(obj_values_lst: list) -> list:
     """
-    This func normalize all the objects. it sends single object to subfunction each time.
+    This func normalize all the objects. it sends single object to sub-function each time.
     """
     normalized_list = []
     for obj in obj_values_lst:
@@ -73,7 +74,8 @@ def normalize_objects(obj_values_lst: list) -> list:
     return normalized_list
 
 
-def select_fk(conn: engine, normalized_rows: list, table, table_fk_col: str, table_value_col: str, value_col: int) -> list:
+def select_fk(conn: engine, normalized_rows: list,
+              table, table_fk_col: str, table_value_col: str, value_col: int) -> list:
     """
     This function changes the normalized rows to have foreign keys in relevant places instead of explicit values.
     params:
@@ -133,7 +135,8 @@ def insert_to_db(table: MetaData, obj_normalized_list: list, conn: engine, uniqu
 
 
 def data_to_db(table: MetaData, obj_values_lst: list, normalized: bool = False, unique_column: str = None,
-               inherit_from=None, match_fk_col: list = None, match_val_col: list = None, replace_val_col: list = [1]):
+               inherit_from=None, match_fk_col: list = None,
+               match_val_col: list = None, replace_val_col: list = [1]):
     """
     This is the main function. it accepts all required values for all the functions it calls.
     The data pass through multiple processing function until eventually it is saved to database in 1NF form.
@@ -152,10 +155,12 @@ def data_to_db(table: MetaData, obj_values_lst: list, normalized: bool = False, 
                 assert len(inherit_from) == len(match_fk_col)
                 assert len(inherit_from) == len(replace_val_col)
             except AssertionError as e:
-                print('The shapes of columns to inherit from and columns to check their values dont match.')
-                return
+                # print('The shapes of columns to inherit from and columns to check their values don't match.')
+                raise e
+
             for i in range(len(inherit_from)):
-                normalized_objects = select_fk(conn, normalized_objects, inherit_from[i], match_fk_col[i], match_val_col[i], replace_val_col[i])
+                normalized_objects = select_fk(conn, normalized_objects, inherit_from[i],
+                                               match_fk_col[i], match_val_col[i], replace_val_col[i])
 
         insert_to_db(table, normalized_objects, conn, unique_column)
 
