@@ -335,7 +335,7 @@ def bgg_scrape_games(scraping_options: list, count: int) -> dict:
 
     games: dict = {}
     for list_index, lst in enumerate(games_pages_urls):
-        for index, url in enumerate(lst[:2]):
+        for index, url in enumerate(lst):
             games[f"game_{list_index * 100 + index}"]: Game = Game(url, driver, scraping_options)
             info_to_print = games[f"game_{list_index * 100 + index}"].get_site_id()
             print(info_to_print)
