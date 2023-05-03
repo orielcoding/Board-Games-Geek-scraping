@@ -3,7 +3,7 @@ bs4==0.0.1
 lxml==4.9.2
 requests==2.27.1
 selenium==4.0.0a7
-SQLAlchemy==2.0.8
+SQLAlchemy==1.4.48
 cryptography==40.0.2
 mysql==0.0.3
 mysql-connector==2.2.9
