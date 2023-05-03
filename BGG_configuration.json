@@ -16,7 +16,7 @@
   "alchemy":
   {
     "db_name": "bgg_db",
-    "SQLAlchemy_db_connection": "mysql+pymysql://root:root@localhost/bgg_db"
+    "SQLAlchemy_db_connection": "mysql+pymysql://maria_oriel:maria_oriel@data-mining-db1.cttpnp4olbpx.us-west-1.rds.amazonaws.com/maria_oriel"
   },
   "mysql":
   {
